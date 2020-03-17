@@ -1,0 +1,13 @@
+[package]
+name = "pływy-fft"
+version = "0.1.0"
+authors = ["Bartłomiej Kamiński <fizyk20@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+csv = "*"
+num = "*"
+serde = { version = "1.0", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
