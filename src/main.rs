@@ -1,4 +1,4 @@
-use chrono::prelude::{DateTime, FixedOffset};
+use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use num::Complex;
 use serde::Deserialize;
 
@@ -18,44 +18,118 @@ struct WaterState {
 }
 
 impl WaterState {
-    #[allow(unused)]
-    fn datetime(&self) -> DateTime<FixedOffset> {
-        DateTime::parse_from_str(&format!("{} {}", self.date, self.time), "%Y/%m/%d %H:%M").unwrap()
+    fn datetime(&self) -> DateTime<Utc> {
+        DateTime::<Utc>::from_utc(
+            NaiveDateTime::parse_from_str(
+                &format!("{} {}", self.date, self.time),
+                "%Y/%m/%d %H:%M",
+            )
+            .unwrap(),
+            Utc,
+        )
     }
 }
 
-fn get_data<P: AsRef<Path>>(path: P) -> Vec<WaterState> {
-    let mut rdr = csv::Reader::from_path(path).unwrap();
-    let mut result = vec![];
-    for record in rdr.deserialize() {
-        result.push(record.unwrap());
-    }
-    result
+struct DataPoint {
+    time: f64,
+    water_level: f64,
 }
 
-fn fft(data: &[WaterState]) -> Vec<Complex<f64>> {
-    let mut result = vec![];
-    let len: f64 = data.len() as f64;
-    let neg_i = -Complex::<f64>::i();
-    for k in 0..data.len() {
-        let kf = k as f64;
-        let mut sum: Complex<f64> = Complex::new(0.0, 0.0);
-        for n in 0..data.len() {
-            let nf = n as f64;
-            sum += data[n].verified * (2.0 * 3.1415926535897 * neg_i * kf * nf / len).exp();
+struct FtPoint {
+    freq: f64,
+    amplitude: f64,
+}
+
+struct DataSet(Vec<DataPoint>);
+
+impl DataSet {
+    fn get_data<P: AsRef<Path>>(path: P) -> Self {
+        let mut rdr = csv::Reader::from_path(path).unwrap();
+        let mut result = vec![];
+        let mut records_iter = rdr.deserialize();
+        let first_record: WaterState = records_iter.next().unwrap().unwrap();
+        let first_datetime = first_record.datetime();
+        result.push(DataPoint {
+            time: 0.0,
+            water_level: first_record.verified,
+        });
+
+        for record in records_iter {
+            let record = record.unwrap();
+            let data_point = DataPoint {
+                time: (record.datetime() - first_datetime).num_seconds() as f64,
+                water_level: record.verified,
+            };
+            result.push(data_point);
         }
-        result.push(sum / len);
+
+        Self(result)
     }
+
+    fn time_interval(&self) -> f64 {
+        self.0.last().unwrap().time - self.0.first().unwrap().time
+    }
+
+    fn integrate_freq(&self, freq: f64) -> Complex<f64> {
+        let neg_i = -Complex::<f64>::i();
+        let mut points_iter = self.0.iter();
+        let DataPoint {
+            time: mut prev_time,
+            water_level: first_level,
+        } = points_iter.next().unwrap();
+        let mut prev_value =
+            first_level * (2.0 * std::f64::consts::PI * neg_i * freq * prev_time).exp();
+
+        let mut result = Complex::new(0.0, 0.0);
+        for DataPoint { time, water_level } in points_iter {
+            let cur_value = water_level * (2.0 * std::f64::consts::PI * neg_i * freq * time).exp();
+            result += 0.5 * (cur_value + prev_value) * (time - prev_time);
+            prev_time = *time;
+            prev_value = cur_value;
+        }
+
+        result / self.time_interval()
+    }
+}
+
+fn fourier(data: &DataSet, start_freq: f64, end_freq: f64, step: f64) -> Vec<FtPoint> {
+    let mut result = vec![];
+
+    let mut current_freq = start_freq;
+    while current_freq <= end_freq {
+        let amplitude = data.integrate_freq(current_freq).norm();
+        result.push(FtPoint {
+            freq: current_freq,
+            amplitude,
+        });
+        current_freq += step;
+    }
+
     result
 }
 
 fn main() {
     let file_path = env::args_os().nth(1).unwrap();
-    let records = get_data(file_path);
-    let freq_step = 24.0 / (records.len() as f64);
-    let fft = fft(&records).into_iter().map(|x| x.norm());
+    let start_freq: f64 = env::args_os()
+        .nth(2)
+        .and_then(|arg| arg.into_string().ok())
+        .and_then(|arg| arg.parse().ok())
+        .unwrap_or(0.0);
+    let end_freq: f64 = env::args_os()
+        .nth(3)
+        .and_then(|arg| arg.into_string().ok())
+        .and_then(|arg| arg.parse().ok())
+        .unwrap_or(5.0 / 86400.0);
+    let step: f64 = env::args_os()
+        .nth(4)
+        .and_then(|arg| arg.into_string().ok())
+        .and_then(|arg| arg.parse().ok())
+        .unwrap_or(5.0 / 86400.0 / 30000.0);
+    let data = DataSet::get_data(file_path);
 
-    for (i, amp) in fft.enumerate() {
-        println!("{} {}", (i as f64) * freq_step, amp);
+    let fourier = fourier(&data, start_freq, end_freq, step);
+
+    for point in fourier.into_iter() {
+        println!("{} {}", point.freq * 86400.0, point.amplitude);
     }
 }
