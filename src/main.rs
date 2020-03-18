@@ -75,17 +75,19 @@ impl DataSet {
         let mut points_iter = self.0.iter();
         let DataPoint {
             time: mut prev_time,
-            water_level: first_level,
+            water_level: mut prev_level,
         } = points_iter.next().unwrap();
-        let mut prev_value =
-            first_level * (2.0 * std::f64::consts::PI * neg_i * freq * prev_time).exp();
+
+        let c = 2.0 * std::f64::consts::PI * neg_i * freq;
 
         let mut result = Complex::new(0.0, 0.0);
         for DataPoint { time, water_level } in points_iter {
-            let cur_value = water_level * (2.0 * std::f64::consts::PI * neg_i * freq * time).exp();
-            result += 0.5 * (cur_value + prev_value) * (time - prev_time);
+            let a = (water_level - prev_level) / (time - prev_time);
+            let b = prev_level - a * prev_time;
+            let int_f = |x: f64| (a * x + b - a / c) / c * (c * x).exp();
+            result += int_f(*time) - int_f(prev_time);
             prev_time = *time;
-            prev_value = cur_value;
+            prev_level = *water_level;
         }
 
         result / self.time_interval()
