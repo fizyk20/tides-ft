@@ -72,23 +72,27 @@ impl DataSet {
 
     fn integrate_freq(&self, freq: f64) -> Complex<f64> {
         let neg_i = -Complex::<f64>::i();
-        let mut points_iter = self.0.iter();
-        let DataPoint {
-            time: mut prev_time,
-            water_level: mut prev_level,
-        } = points_iter.next().unwrap();
 
         let c = 2.0 * std::f64::consts::PI * neg_i * freq;
 
-        let mut result = Complex::new(0.0, 0.0);
-        for DataPoint { time, water_level } in points_iter {
-            let a = (water_level - prev_level) / (time - prev_time);
-            let b = prev_level - a * prev_time;
-            let int_f = |x: f64| (a * x + b - a / c) / c * (c * x).exp();
-            result += int_f(*time) - int_f(prev_time);
-            prev_time = *time;
-            prev_level = *water_level;
-        }
+        let result: Complex<f64> = self
+            .0
+            .windows(2)
+            .map(|points| {
+                let DataPoint {
+                    time: time1,
+                    water_level: level1,
+                } = points[0];
+                let DataPoint {
+                    time: time2,
+                    water_level: level2,
+                } = points[1];
+                let a = (level2 - level1) / (time2 - time1);
+                let b = level1 - a * time1;
+                let int_f = |x: f64| (a * x + b - a / c) / c * (c * x).exp();
+                int_f(time2) - int_f(time1)
+            })
+            .sum();
 
         result / self.time_interval()
     }
