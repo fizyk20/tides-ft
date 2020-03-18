@@ -1,5 +1,6 @@
 use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use num::Complex;
+use rayon::prelude::{ParallelIterator, ParallelSlice};
 use serde::Deserialize;
 
 use std::env;
@@ -77,7 +78,7 @@ impl DataSet {
 
         let result: Complex<f64> = self
             .0
-            .windows(2)
+            .par_windows(2)
             .map(|points| {
                 let DataPoint {
                     time: time1,
