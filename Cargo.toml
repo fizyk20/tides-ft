@@ -1,5 +1,5 @@
 [package]
-name = "pływy-fft"
+name = "tides-ft"
 version = "0.1.0"
 authors = ["Bartłomiej Kamiński <fizyk20@gmail.com>"]
 edition = "2018"

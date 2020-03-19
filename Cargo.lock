@@ -262,17 +262,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pływy-fft"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "csv",
- "num",
- "rayon",
- "serde",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -361,6 +350,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "tides-ft"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "csv",
+ "num",
+ "rayon",
+ "serde",
 ]
 
 [[package]]
