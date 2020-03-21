@@ -13,8 +13,6 @@ struct WaterState {
     date: String,
     #[serde(rename = "Time (GMT)")]
     time: String,
-    #[serde(rename = "Predicted (m)")]
-    predicted: f64,
     #[serde(rename = "Verified (m)")]
     verified: f64,
 }
